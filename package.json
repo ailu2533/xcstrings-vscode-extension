@@ -3,7 +3,7 @@
   "displayName": "XCStrings Manager",
   "description": "Split and merge Xcode .xcstrings localization files",
   "version": "1.0.0",
-  "publisher": "your-publisher-name",
+  "publisher": "ailu2533",
   "engines": {
     "vscode": "^1.80.0"
   },

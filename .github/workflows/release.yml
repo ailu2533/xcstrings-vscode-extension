@@ -1,0 +1,74 @@
+name: Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*'  # 当推送 v* 格式的 tag 时触发（如 v1.0.0, v1.2.3）
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write  # 需要写权限来创建 release
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Compile TypeScript
+        run: npm run compile
+      
+      - name: Package extension
+        run: npx @vscode/vsce package --allow-missing-repository
+      
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Release ${{ github.ref_name }}
+          body: |
+            ## XCStrings Manager ${{ github.ref_name }}
+            
+            ### 安装方法
+            1. 下载下方的 `.vsix` 文件
+            2. 在 VS Code 中打开命令面板 (Cmd+Shift+P / Ctrl+Shift+P)
+            3. 输入 "Extensions: Install from VSIX..."
+            4. 选择下载的 `.vsix` 文件
+            
+            ### 功能特性
+            - ✅ Split: 将 .xcstrings 文件拆分为多个语言 JSON 文件
+            - ✅ Merge: 将多个语言 JSON 文件合并回 .xcstrings 格式
+            - ✅ Compare: 深度比较两个 .xcstrings 文件
+            
+            ### 更新内容
+            请查看提交历史了解详细更新内容。
+          draft: false
+          prerelease: false
+      
+      - name: Upload VSIX to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./xcstrings-manager-${{ steps.get_version.outputs.VERSION }}.vsix
+          asset_name: xcstrings-manager-${{ steps.get_version.outputs.VERSION }}.vsix
+          asset_content_type: application/octet-stream
+
