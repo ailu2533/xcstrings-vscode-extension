@@ -1,0 +1,73 @@
+{
+  "name": "xcstrings-manager",
+  "displayName": "XCStrings Manager",
+  "description": "Split and merge Xcode .xcstrings localization files",
+  "version": "1.0.0",
+  "publisher": "your-publisher-name",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:json"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "xcstrings.split",
+        "title": "XCStrings: Split File",
+        "icon": "$(split-horizontal)"
+      },
+      {
+        "command": "xcstrings.merge",
+        "title": "XCStrings: Merge Files",
+        "icon": "$(combine)"
+      },
+      {
+        "command": "xcstrings.compare",
+        "title": "XCStrings: Compare Files",
+        "icon": "$(diff)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "resourceExtname == .xcstrings",
+          "command": "xcstrings.split",
+          "group": "xcstrings@1"
+        },
+        {
+          "when": "explorerResourceIsFolder",
+          "command": "xcstrings.merge",
+          "group": "xcstrings@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "when": "resourceExtname == .xcstrings",
+          "command": "xcstrings.split",
+          "group": "xcstrings@1"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}
+
