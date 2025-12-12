@@ -25,6 +25,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {}
 
+// 支持的目标语言列表
+const TARGET_LANGUAGES = ['de', 'en', 'es', 'ja', 'pt', 'zh-Hans', 'zh-Hant'];
+
 /**
  * 拆分 xcstrings 文件
  */
@@ -41,7 +44,7 @@ async function splitXCStrings(uri: vscode.Uri) {
         }
 
         const filePath = uri.fsPath;
-        
+
         if (!filePath.endsWith('.xcstrings')) {
             vscode.window.showErrorMessage('请选择一个 .xcstrings 文件');
             return;
@@ -71,11 +74,14 @@ async function splitXCStrings(uri: vscode.Uri) {
             const content = fs.readFileSync(filePath, 'utf-8');
             const data = JSON.parse(content);
 
-            progress.report({ increment: 20, message: "解析数据..." });
+            progress.report({ increment: 10, message: "解析数据..." });
 
             // 获取所有字符串
             const strings = data.strings || {};
-            
+
+            // 收集所有的翻译 key
+            const allKeys = Object.keys(strings).sort();
+
             // 保存根级别的元数据
             const rootMetadata: any = {};
             for (const key in data) {
@@ -84,17 +90,20 @@ async function splitXCStrings(uri: vscode.Uri) {
                 }
             }
 
-            // 用于存储每个语言的翻译
+            // 用于存储每个语言的翻译（初始化所有目标语言）
             const languageTranslations: { [lang: string]: any } = {};
+            for (const lang of TARGET_LANGUAGES) {
+                languageTranslations[lang] = {};
+            }
 
             progress.report({ increment: 20, message: "提取翻译..." });
 
-            // 遍历所有字符串
-            for (const [key, value] of Object.entries(strings)) {
-                const stringData = value as any;
+            // 遍历所有字符串 key
+            for (const key of allKeys) {
+                const stringData = strings[key] as any;
                 const localizations = stringData.localizations || {};
-                
-                // 提取额外的字段
+
+                // 提取额外的字段（如 comment, shouldTranslate 等）
                 const extraFields: any = {};
                 for (const k in stringData) {
                     if (k !== 'localizations') {
@@ -102,22 +111,38 @@ async function splitXCStrings(uri: vscode.Uri) {
                     }
                 }
 
-                // 遍历每个语言的本地化
-                for (const [lang, localizationData] of Object.entries(localizations)) {
-                    if (!languageTranslations[lang]) {
-                        languageTranslations[lang] = {};
+                // 为每个目标语言处理翻译
+                for (const lang of TARGET_LANGUAGES) {
+                    const localizationData = localizations[lang];
+
+                    if (localizationData) {
+                        // 该语言有翻译
+                        const entry: any = typeof localizationData === 'object' && localizationData !== null
+                            ? { ...(localizationData as object) }
+                            : localizationData;
+
+                        // 添加额外的字段
+                        if (Object.keys(extraFields).length > 0 && typeof entry === 'object') {
+                            entry._extra_fields = extraFields;
+                        }
+
+                        languageTranslations[lang][key] = entry;
+                    } else {
+                        // 该语言缺少翻译，使用占位符结构
+                        const placeholderEntry: any = {
+                            stringUnit: {
+                                state: "needs_translation",
+                                value: ""
+                            }
+                        };
+
+                        // 添加额外的字段
+                        if (Object.keys(extraFields).length > 0) {
+                            placeholderEntry._extra_fields = extraFields;
+                        }
+
+                        languageTranslations[lang][key] = placeholderEntry;
                     }
-
-                    const entry: any = typeof localizationData === 'object' && localizationData !== null
-                        ? { ...(localizationData as object) }
-                        : localizationData;
-
-                    // 添加额外的字段
-                    if (Object.keys(extraFields).length > 0 && typeof entry === 'object') {
-                        entry._extra_fields = extraFields;
-                    }
-
-                    languageTranslations[lang][key] = entry;
                 }
             }
 
@@ -130,28 +155,55 @@ async function splitXCStrings(uri: vscode.Uri) {
 
             progress.report({ increment: 20, message: "写入文件..." });
 
-            // 为每个语言生成 JSON 文件
+            // 为每个目标语言生成 JSON 文件
             let fileCount = 0;
-            for (const [lang, translations] of Object.entries(languageTranslations)) {
+            let missingTranslations = 0;
+
+            for (const lang of TARGET_LANGUAGES) {
+                const translations = languageTranslations[lang];
+
+                // 统计缺失的翻译数量
+                for (const key of allKeys) {
+                    const entry = translations[key];
+                    if (entry?.stringUnit?.state === "needs_translation") {
+                        missingTranslations++;
+                    }
+                }
+
                 // 添加根级别的元数据
                 if (Object.keys(rootMetadata).length > 0) {
-                    (translations as any)._root_metadata = rootMetadata;
+                    translations._root_metadata = rootMetadata;
+                }
+
+                // 按 key 排序输出，确保一致性
+                const sortedTranslations: any = {};
+                if (translations._root_metadata) {
+                    sortedTranslations._root_metadata = translations._root_metadata;
+                }
+                for (const key of allKeys) {
+                    sortedTranslations[key] = translations[key];
                 }
 
                 const outputFile = path.join(outputDir, `${lang}.json`);
-                fs.writeFileSync(outputFile, JSON.stringify(translations, null, 2), 'utf-8');
+                fs.writeFileSync(outputFile, JSON.stringify(sortedTranslations, null, 2), 'utf-8');
                 fileCount++;
             }
 
-            progress.report({ increment: 20, message: "完成！" });
+            progress.report({ increment: 30, message: "完成！" });
+
+            // 生成统计报告
+            const totalEntries = allKeys.length * TARGET_LANGUAGES.length;
+            const existingTranslations = totalEntries - missingTranslations;
+            const completionRate = ((existingTranslations / totalEntries) * 100).toFixed(1);
 
             vscode.window.showInformationMessage(
-                `✓ 成功拆分为 ${fileCount} 个语言文件到 ${outputDir}`
+                `✓ 成功拆分为 ${fileCount} 个语言文件到 ${outputDir}\n` +
+                `📊 共 ${allKeys.length} 个 key，翻译完成率: ${completionRate}%`
             );
 
             // 询问是否打开输出目录
             const openFolder = await vscode.window.showInformationMessage(
-                '是否在资源管理器中打开输出目录？',
+                `是否在资源管理器中打开输出目录？\n(缺失翻译: ${missingTranslations} 条)`,
                 '是', '否'
             );
 
