@@ -31,18 +31,23 @@ jobs:
       - name: Package extension
         run: npx @vscode/vsce package --allow-missing-repository
       
-      - name: Get version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+      - name: Get version and package info
+        id: get_info
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          VSIX_FILE=$(ls *.vsix | head -n 1)
+          echo "VSIX_FILE=$VSIX_FILE" >> $GITHUB_OUTPUT
+          echo "Found VSIX file: $VSIX_FILE"
       
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           body: |
             ## XCStrings Manager ${{ github.ref_name }}
             
@@ -61,14 +66,6 @@ jobs:
             请查看提交历史了解详细更新内容。
           draft: false
           prerelease: false
-      
-      - name: Upload VSIX to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./xcstrings-manager-${{ steps.get_version.outputs.VERSION }}.vsix
-          asset_name: xcstrings-manager-${{ steps.get_version.outputs.VERSION }}.vsix
-          asset_content_type: application/octet-stream
+          files: |
+            *.vsix
 
