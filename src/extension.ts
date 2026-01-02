@@ -26,7 +26,31 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {}
 
 // 支持的目标语言列表
-const TARGET_LANGUAGES = ['de', 'en', 'es', 'ja', 'pt', 'zh-Hans', 'zh-Hant'];
+const ALL_LANGUAGES = [
+    { code: 'en', label: 'English' },
+    { code: 'zh-Hans', label: '简体中文' },
+    { code: 'zh-Hant', label: '繁體中文' },
+    { code: 'ja', label: '日本語' },
+    { code: 'ko', label: '한국어' },
+    { code: 'de', label: 'Deutsch' },
+    { code: 'es', label: 'Español' },
+    { code: 'fr', label: 'Français' },
+    { code: 'it', label: 'Italiano' },
+    { code: 'pt', label: 'Português' },
+    { code: 'pt-BR', label: 'Português (Brasil)' },
+    { code: 'ru', label: 'Русский' },
+    { code: 'ar', label: 'العربية' },
+    { code: 'th', label: 'ไทย' },
+    { code: 'vi', label: 'Tiếng Việt' },
+    { code: 'id', label: 'Bahasa Indonesia' },
+    { code: 'ms', label: 'Bahasa Melayu' },
+    { code: 'tr', label: 'Türkçe' },
+    { code: 'pl', label: 'Polski' },
+    { code: 'nl', label: 'Nederlands' },
+    { code: 'uk', label: 'Українська' },
+    { code: 'he', label: 'עברית' },
+    { code: 'hi', label: 'हिन्दी' },
+];
 
 /**
  * 拆分 xcstrings 文件
@@ -61,6 +85,26 @@ async function splitXCStrings(uri: vscode.Uri) {
         if (!outputDir) {
             return;
         }
+
+        // 让用户选择目标语言（多选，默认全选）
+        const languageItems = ALL_LANGUAGES.map(lang => ({
+            label: lang.label,
+            description: lang.code,
+            picked: true  // 默认全选
+        }));
+
+        const selectedLanguages = await vscode.window.showQuickPick(languageItems, {
+            canPickMany: true,
+            placeHolder: '选择要导出的语言（默认全选）',
+            title: '选择目标语言'
+        });
+
+        if (!selectedLanguages || selectedLanguages.length === 0) {
+            vscode.window.showWarningMessage('未选择任何语言');
+            return;
+        }
+
+        const TARGET_LANGUAGES = selectedLanguages.map(item => item.description!);
 
         // 显示进度
         await vscode.window.withProgress({
